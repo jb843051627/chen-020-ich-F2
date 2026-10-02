@@ -22,9 +22,10 @@ CREATE TABLE IF NOT EXISTS t_ich_grant_bill (
   id bigint NOT NULL COMMENT '主键',
   bill_no varchar(64) DEFAULT NULL COMMENT '工坊认定核准单',
   node_no int DEFAULT NULL COMMENT '当前所在档口 0..2（县文旅/市文旅/省文旅）',
-  sign_mode int DEFAULT NULL COMMENT '同档并签办法 0一笔即可 1两笔点齐',
-  need_count int DEFAULT NULL COMMENT '本档应落名数',
-  sign_count int DEFAULT NULL COMMENT '本档已落名数',
+  round_no int DEFAULT '0' COMMENT '当下签批轮次 0头一回起 每挪回一格加一（新旧两份分开留档）',
+  sign_mode int DEFAULT NULL COMMENT '同档并签办法 0一笔即可 1两笔点齐（仅页面参考，凑齐与否以落名记录回算为准）',
+  need_count int DEFAULT NULL COMMENT '本档应落名数（仅页面参考，权威数以三档定法回算为准）',
+  sign_count int DEFAULT NULL COMMENT '本档已落名数（仅页面参考，权威数顺着落名记录一笔笔点出）',
   status int DEFAULT NULL COMMENT '核准情形 0在核 1已认下 2已挪回',
   del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
   create_by varchar(64) DEFAULT NULL COMMENT '创建者',
@@ -34,6 +35,28 @@ CREATE TABLE IF NOT EXISTS t_ich_grant_bill (
   remark varchar(500) DEFAULT NULL COMMENT '备注',
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='工坊认定核准单';
+
+-- 2026-10-02 起：t_ich_grant_bill 新增 round_no（挪回轮次）；
+-- 落名不再只靠格子里的 sign_count，另立 t_ich_grant_sign 一笔一记录，回算以它为准。
+-- 落名一笔一记录：凑齐与否、当前档口、复查总笔数一律顺着这张表点出来，
+-- 不由谁往 t_ich_grant_bill 的格子里敲数。挪回只退一格，旧轮落名一笔不抹。
+CREATE TABLE IF NOT EXISTS t_ich_grant_sign (
+  id bigint NOT NULL COMMENT '主键',
+  bill_id bigint NOT NULL COMMENT '所属核准单 t_ich_grant_bill.id',
+  node_no int NOT NULL COMMENT '落在哪一档 0县文旅 1市文旅 2省文旅',
+  round_no int NOT NULL COMMENT '落名时所属轮次 0头一轮起 挪回后续签轮次加一',
+  approver varchar(64) NOT NULL COMMENT '落名同志',
+  comment varchar(500) DEFAULT NULL COMMENT '签批意见',
+  sign_time datetime DEFAULT NULL COMMENT '落名时刻（新旧两份分开留档）',
+  del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
+  create_by varchar(64) DEFAULT NULL COMMENT '创建者',
+  create_time datetime DEFAULT NULL COMMENT '创建时间',
+  update_by varchar(64) DEFAULT NULL COMMENT '更新者',
+  update_time datetime DEFAULT NULL COMMENT '更新时间',
+  remark varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_bill_round_node_approver (bill_id, round_no, node_no, approver)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='工坊认定核准单落名记录';
 
 CREATE TABLE IF NOT EXISTS t_ich_image_card (
   id bigint NOT NULL COMMENT '主键',

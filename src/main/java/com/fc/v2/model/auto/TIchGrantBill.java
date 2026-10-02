@@ -36,24 +36,29 @@ public class TIchGrantBill implements Serializable {
     @ApiModelProperty(value = "工坊认定核准单")
     private String billNo;
 
-    /** 当前所在档口 0..2（县文旅/市文旅/省文旅） */
+    /** 当前所在档口 0..2（县文旅/市文旅/省文旅），服务层回算落名记录得出，前端所传只当意向 */
     @TableField("node_no")
     @ApiModelProperty(value = "当前所在档口 0..2（县文旅/市文旅/省文旅）")
     private Integer nodeNo;
 
-    /** 同档并签办法 0一笔即可 1两笔点齐 */
+    /** 当下签批轮次 0头一回起 每挪回一格加一（新旧两份分开留档） */
+    @TableField("round_no")
+    @ApiModelProperty(value = "当下签批轮次 0头一回起 每挪回一格加一")
+    private Integer roundNo;
+
+    /** 同档并签办法 0一笔即可 1两笔点齐（仅页面参考，权威数以三档定法回算为准） */
     @TableField("sign_mode")
-    @ApiModelProperty(value = "同档并签办法 0一笔即可 1两笔点齐")
+    @ApiModelProperty(value = "同档并签办法 0一笔即可 1两笔点齐（仅页面参考）")
     private Integer signMode;
 
-    /** 本档应落名数 */
+    /** 本档应落名数（仅页面参考，权威数以三档定法回算为准） */
     @TableField("need_count")
-    @ApiModelProperty(value = "本档应落名数")
+    @ApiModelProperty(value = "本档应落名数（仅页面参考）")
     private Integer needCount;
 
-    /** 本档已落名数 */
+    /** 本档已落名数（仅页面参考，权威数顺着落名记录一笔笔点出） */
     @TableField("sign_count")
-    @ApiModelProperty(value = "本档已落名数")
+    @ApiModelProperty(value = "本档已落名数（仅页面参考，以落名记录回算为准）")
     private Integer signCount;
 
     /** 核准情形 0在核 1已认下 2已挪回 */
@@ -115,6 +120,14 @@ public class TIchGrantBill implements Serializable {
 
     public void setNodeNo(Integer nodeNo) {
         this.nodeNo = nodeNo;
+    }
+
+    public Integer getRoundNo() {
+        return roundNo;
+    }
+
+    public void setRoundNo(Integer roundNo) {
+        this.roundNo = roundNo;
     }
 
     public Integer getSignMode() {
