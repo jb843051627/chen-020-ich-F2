@@ -41,6 +41,11 @@ public class TIchGrantBill implements Serializable {
     @ApiModelProperty(value = "当前所在档口 0..2（县文旅/市文旅/省文旅）")
     private Integer nodeNo;
 
+    /** 起签轮次 挪回一回加一轮 早先旧名按轮留档不抹 */
+    @TableField("round_no")
+    @ApiModelProperty(value = "起签轮次 挪回一回加一轮 早先旧名按轮留档不抹")
+    private Integer roundNo;
+
     /** 同档并签办法 0一笔即可 1两笔点齐 */
     @TableField("sign_mode")
     @ApiModelProperty(value = "同档并签办法 0一笔即可 1两笔点齐")
@@ -115,6 +120,14 @@ public class TIchGrantBill implements Serializable {
 
     public void setNodeNo(Integer nodeNo) {
         this.nodeNo = nodeNo;
+    }
+
+    public Integer getRoundNo() {
+        return roundNo;
+    }
+
+    public void setRoundNo(Integer roundNo) {
+        this.roundNo = roundNo;
     }
 
     public Integer getSignMode() {

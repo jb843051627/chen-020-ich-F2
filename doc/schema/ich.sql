@@ -22,9 +22,10 @@ CREATE TABLE IF NOT EXISTS t_ich_grant_bill (
   id bigint NOT NULL COMMENT '主键',
   bill_no varchar(64) DEFAULT NULL COMMENT '工坊认定核准单',
   node_no int DEFAULT NULL COMMENT '当前所在档口 0..2（县文旅/市文旅/省文旅）',
+  round_no int DEFAULT '1' COMMENT '起签轮次 挪回一回加一轮 早先旧名按轮留档不抹',
   sign_mode int DEFAULT NULL COMMENT '同档并签办法 0一笔即可 1两笔点齐',
-  need_count int DEFAULT NULL COMMENT '本档应落名数',
-  sign_count int DEFAULT NULL COMMENT '本档已落名数',
+  need_count int DEFAULT NULL COMMENT '本档应落名数（台账回算同步 只当纸面参考）',
+  sign_count int DEFAULT NULL COMMENT '本档已落名数（台账回算同步 只当纸面参考）',
   status int DEFAULT NULL COMMENT '核准情形 0在核 1已认下 2已挪回',
   del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
   create_by varchar(64) DEFAULT NULL COMMENT '创建者',
@@ -34,6 +35,26 @@ CREATE TABLE IF NOT EXISTS t_ich_grant_bill (
   remark varchar(500) DEFAULT NULL COMMENT '备注',
   PRIMARY KEY (id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='工坊认定核准单';
+
+-- 落名台账：认定单每一笔落名/挪回都逐笔留痕，档口凑没凑齐只顺着这张表点，不靠格子里敲数。
+CREATE TABLE IF NOT EXISTS t_ich_grant_sign (
+  id bigint NOT NULL COMMENT '主键',
+  bill_id bigint NOT NULL COMMENT '认定单主键 t_ich_grant_bill.id',
+  bill_no varchar(64) DEFAULT NULL COMMENT '认定单单号（随笔留档）',
+  node_no int NOT NULL COMMENT '落笔所在档口 0县文旅 1市文旅 2省文旅',
+  round_no int NOT NULL COMMENT '起签轮次 挪回后重新起签另起一轮 旧轮名一笔不抹',
+  action int NOT NULL COMMENT '留档动作 1落名 2挪回',
+  signer varchar(64) NOT NULL COMMENT '落名（挪回）同志',
+  sign_comment varchar(255) DEFAULT NULL COMMENT '所附意见',
+  del_flag int DEFAULT '0' COMMENT '删除标记 0正常 1删除',
+  create_by varchar(64) DEFAULT NULL COMMENT '创建者',
+  create_time datetime DEFAULT NULL COMMENT '落笔时刻',
+  update_by varchar(64) DEFAULT NULL COMMENT '更新者',
+  update_time datetime DEFAULT NULL COMMENT '更新时间',
+  remark varchar(500) DEFAULT NULL COMMENT '备注',
+  PRIMARY KEY (id),
+  KEY idx_grant_sign_bill (bill_id, round_no, node_no, action)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci COMMENT='工坊认定核准单落名台账';
 
 CREATE TABLE IF NOT EXISTS t_ich_image_card (
   id bigint NOT NULL COMMENT '主键',

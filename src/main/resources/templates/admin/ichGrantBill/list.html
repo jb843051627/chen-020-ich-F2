@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org" xmlns:sec="http://www.pollix.at/thymeleaf/shiro">
+<head>
+    <th:block th:include="include :: header('工坊认定核准单')"/>
+</head>
+<body class="pear-container">
+<div class="layui-card">
+    <div class="layui-card-body">
+        <form class="layui-form" action="">
+            <div class="layui-form-item">
+                <label class="layui-form-label">认定单号</label>
+                <div class="layui-input-inline">
+                    <input type="text" id="openBillNo" placeholder="如 GF-2026-001" class="layui-input">
+                </div>
+                <label class="layui-form-label">备注</label>
+                <div class="layui-input-inline" style="width:260px;">
+                    <input type="text" id="openRemark" placeholder="工坊名号等" class="layui-input">
+                </div>
+                <button type="button" class="pear-btn pear-btn-md pear-btn-primary" id="btn-open">
+                    <i class="layui-icon layui-icon-add-1"></i>
+                    新开认定单
+                </button>
+                <button type="button" class="pear-btn pear-btn-md" id="btn-refresh">
+                    <i class="layui-icon layui-icon-refresh"></i>
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+<div class="layui-card">
+    <div class="layui-card-body">
+        <table id="grant-table" lay-filter="grant-table"></table>
+    </div>
+</div>
+
+<script type="text/html" id="grant-bar">
+    <button shiro:hasPermission="gen:ichGrantBill:sign" class="pear-btn pear-btn-primary pear-btn-sm" lay-event="window">窗口</button>
+    <button shiro:hasPermission="gen:ichGrantBill:sign" class="pear-btn pear-btn-normal pear-btn-sm" lay-event="sign">落名</button>
+    <button shiro:hasPermission="gen:ichGrantBill:rollback" class="pear-btn pear-btn-warming pear-btn-sm" lay-event="rollback">挪回</button>
+    <button shiro:hasPermission="gen:ichGrantBill:audit" class="pear-btn pear-btn-sm" lay-event="audit">复查</button>
+</script>
+
+<script type="text/html" id="grant-node">
+    {{#  if(d.nodeNo === 0){ }}县文旅
+    {{#  } else if(d.nodeNo === 1){ }}市文旅
+    {{#  } else if(d.nodeNo === 2){ }}省文旅{{# } }}
+    <span style="color:#999;">（第{{ d.roundNo }}轮）</span>
+</script>
+
+<script type="text/html" id="grant-status">
+    {{#  if(d.status === 1){ }}<span style="color:#16a34a;">已认下（已锁）</span>
+    {{#  } else if(d.status === 2){ }}<span style="color:#d97706;">已挪回</span>
+    {{#  } else { }}在核{{# } }}
+</script>
+
+<th:block th:include="include :: footer"/>
+<script>
+    layui.use(['table', 'layer', 'jquery'], function () {
+        let table = layui.table;
+        let layer = layui.layer;
+        let $ = layui.jquery;
+
+        let MODULE_PATH = rootPath + "/ichGrantBill/";
+
+        table.render({
+            elem: '#grant-table',
+            url: MODULE_PATH + 'list',
+            method: 'get',
+            page: true,
+            skin: 'line',
+            cols: [[
+                {title: 'ID', field: 'id', align: 'center', hide: true},
+                {title: '认定单号', field: 'billNo', align: 'center', width: 200},
+                {title: '此刻停在', field: 'nodeNo', align: 'center', width: 180, templet: '#grant-node'},
+                {title: '本档并签', templet: function (d) {
+                        return d.signMode === 1 ? '两笔点齐' : '一笔即可';
+                    }, align: 'center', width: 110},
+                {title: '纸面参考', templet: function (d) {
+                        return '应到 ' + (d.needCount == null ? '-' : d.needCount)
+                            + ' / 已落 ' + (d.signCount == null ? '-' : d.signCount);
+                    }, align: 'center', width: 150},
+                {title: '核准情形', field: 'status', align: 'center', width: 140, templet: '#grant-status'},
+                {title: '备注', field: 'remark', align: 'center'},
+                {title: '操作', toolbar: '#grant-bar', align: 'center', width: 300}
+            ]]
+        });
+
+        $('#btn-refresh').on('click', function () {
+            table.reload('grant-table');
+        });
+
+        $('#btn-open').on('click', function () {
+            let billNo = $('#openBillNo').val();
+            let remark = $('#openRemark').val();
+            if (!billNo) {
+                layer.msg("认定单号不能为空", {icon: 2});
+                return;
+            }
+            let loading = layer.load();
+            $.post(MODULE_PATH + 'open', {billNo: billNo, remark: remark}, function (res) {
+                layer.close(loading);
+                layer.msg(res.msg, {icon: res.code === 200 ? 1 : 2});
+                if (res.code === 200) {
+                    $('#openBillNo').val('');
+                    $('#openRemark').val('');
+                    table.reload('grant-table');
+                }
+            });
+        });
+
+        table.on('tool(grant-table)', function (obj) {
+            if (obj.event === 'window') {
+                openWindow(obj.data.id);
+            } else if (obj.event === 'sign') {
+                openSign(obj.data.id);
+            } else if (obj.event === 'rollback') {
+                doRollback(obj.data.id, obj.data);
+            } else if (obj.event === 'audit') {
+                openAudit(obj.data.id);
+            }
+        });
+
+        // 窗口：一档一处，四件事都摆出来（数目全由服务层台账回算）
+        function openWindow(id) {
+            let loading = layer.load();
+            $.get(MODULE_PATH + 'viewData', {id: id}, function (res) {
+                layer.close(loading);
+                if (res.code !== 200) {
+                    layer.msg(res.msg, {icon: 2});
+                    return;
+                }
+                let d = res.data;
+                let html = '<div style="padding:16px;">'
+                    + '<p>认定单号：<b>' + d.billNo + '</b>　第 ' + d.roundNo + ' 轮　'
+                    + '停在 <b>' + d.nodeName + '</b>　'
+                    + (d.locked ? '<span style="color:#16a34a;">已认下·已锁</span>' : '在核')
+                    + '　台账落名 ' + d.ledgerTotal + ' 笔　'
+                    + (d.aligned ? '<span style="color:#16a34a;">条数与档口对得齐</span>'
+                                 : '<span style="color:#dc2626;">对不齐</span>')
+                    + '</p><table class="layui-table" style="margin-top:10px;"><thead><tr>'
+                    + '<th>档口</th><th>并签办法</th><th>该凑几人</th><th>已落几名</th><th>本轮落名同志</th><th>情形</th></tr></thead><tbody>';
+                layui.each(d.nodes, function (i, n) {
+                    html += '<tr' + (n.current ? ' style="background:#fff7ed;"' : '') + '>'
+                        + '<td>' + n.nodeName + (n.current ? '（当前）' : '') + '</td>'
+                        + '<td>' + n.signModeText + '</td>'
+                        + '<td>' + n.needCount + '</td>'
+                        + '<td>' + n.signedCount + '</td>'
+                        + '<td>' + (n.signers.length ? n.signers.join('、') : '—') + '</td>'
+                        + '<td>' + n.stateText + '</td></tr>';
+                });
+                html += '</tbody></table></div>';
+                layer.open({type: 1, title: '核准窗口', area: ['860px', '460px'], content: html});
+            });
+        }
+
+        // 落名：意向档默认带出当前档，但只当意向——服务层说停在哪就停在哪
+        function openSign(id) {
+            $.get(MODULE_PATH + 'viewData', {id: id}, function (res) {
+                if (res.code !== 200) {
+                    layer.msg(res.msg, {icon: 2});
+                    return;
+                }
+                let d = res.data;
+                if (d.locked) {
+                    layer.msg("省厅已认下，单子锁上，补不进名", {icon: 2});
+                    return;
+                }
+                let opts = '';
+                layui.each(['县文旅', '市文旅', '省文旅'], function (i, name) {
+                    opts += '<option value="' + i + '"' + (i === d.nodeNo ? ' selected' : '') + '>' + name + '</option>';
+                });
+                let html = '<div style="padding:20px;">'
+                    + '<div class="layui-form-item"><label class="layui-form-label">意向档口</label>'
+                    + '<div class="layui-input-inline"><select id="signNode" class="layui-input">' + opts + '</select></div>'
+                    + '<div class="layui-form-mid layui-word-aux">单子实停：<b>' + d.nodeName + '</b>，档号只作意向</div></div>'
+                    + '<div class="layui-form-item"><label class="layui-form-label">落名同志</label>'
+                    + '<div class="layui-input-inline"><input id="signer" class="layui-input" placeholder="本人姓名"></div></div>'
+                    + '<div class="layui-form-item"><label class="layui-form-label">意见</label>'
+                    + '<div class="layui-input-inline" style="width:280px;"><input id="signComment" class="layui-input"></div></div>'
+                    + '<div style="color:#999;padding-left:20px;">县1笔即过；市要2名同志点齐，只落1名仍候签；省1笔认下即锁。</div>'
+                    + '</div>';
+                layer.open({
+                    type: 1, title: '落名（' + d.billNo + '）', area: ['620px', '320px'], btn: ['落名', '取消'],
+                    content: html,
+                    yes: function (idx) {
+                        let signer = $('#signer').val();
+                        if (!signer) {
+                            layer.msg("落名同志不能为空", {icon: 2});
+                            return;
+                        }
+                        let loading = layer.load();
+                        $.post(MODULE_PATH + 'sign', {
+                            id: id,
+                            nodeNo: $('#signNode').val(),
+                            signer: signer,
+                            comment: $('#signComment').val()
+                        }, function (r) {
+                            layer.close(loading);
+                            layer.msg(r.msg, {icon: r.code === 200 ? 1 : 2});
+                            if (r.code === 200) {
+                                layer.close(idx);
+                                table.reload('grant-table');
+                            }
+                        });
+                    }
+                });
+            });
+        }
+
+        // 挪回：只挪紧挨的上一格，旧名不抹
+        function doRollback(id, row) {
+            if (row.status === 1) {
+                layer.msg("已认下锁单，挪不回去", {icon: 2});
+                return;
+            }
+            if (row.nodeNo === 0) {
+                layer.msg("已在县文旅档，没有更上一档可退", {icon: 2});
+                return;
+            }
+            layer.prompt({title: '挪回意见（只退回紧挨的上一档，旧名不抹）', formType: 2}, function (comment, idx) {
+                layer.close(idx);
+                let loading = layer.load();
+                $.post(MODULE_PATH + 'rollback', {id: id, operator: '', comment: comment}, function (r) {
+                    layer.close(loading);
+                    layer.msg(r.msg, {icon: r.code === 200 ? 1 : 2});
+                    if (r.code === 200) {
+                        table.reload('grant-table');
+                    }
+                });
+            });
+        }
+
+        // 复查：省厅倒着数回县里，逐档清点
+        function openAudit(id) {
+            let loading = layer.load();
+            $.get(MODULE_PATH + 'audit', {id: id}, function (res) {
+                layer.close(loading);
+                let d = res.data;
+                if (!d || !d.view) {
+                    layer.msg("认定单不存在", {icon: 2});
+                    return;
+                }
+                let html = '<div style="padding:16px;">'
+                    + '<p>复查结论：'
+                    + (d.pass ? '<span style="color:#16a34a;"><b>站得住</b></span>'
+                              : '<span style="color:#dc2626;"><b>站不住</b></span>')
+                    + '　核准名单总笔数：<b>' + d.totalCount + '</b>（台账落名 ' + d.view.ledgerTotal + ' 笔，含各轮留档）</p>'
+                    + '<table class="layui-table" style="margin-top:10px;"><thead><tr>'
+                    + '<th>档口（省→县）</th><th>凑齐轮次</th><th>应到</th><th>核准名单</th><th>单档核验</th></tr></thead><tbody>';
+                layui.each(d.audits, function (i, a) {
+                    html += '<tr><td>' + a.nodeName + '</td>'
+                        + '<td>第 ' + (a.roundNo == null ? '-' : a.roundNo) + ' 轮</td>'
+                        + '<td>' + a.needCount + '</td>'
+                        + '<td>' + (a.approvedSigners.length ? a.approvedCount + ' 人：' + a.approvedSigners.join('、') : '—') + '</td>'
+                        + '<td>' + (a.nodePass ? '<span style="color:#16a34a;">合</span>' : '<span style="color:#dc2626;">不合</span>') + '</td></tr>';
+                });
+                html += '</tbody></table></div>';
+                layer.open({type: 1, title: '复查（倒着数回县里）', area: ['860px', '440px'], content: html});
+            });
+        }
+    });
+</script>
+</body>
+</html>
